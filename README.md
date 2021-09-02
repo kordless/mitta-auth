@@ -1,7 +1,11 @@
-# Mitta Auth
-Mitta Auth is a password-less authentication system written for Mitta.us. In this version, it is run on an AppEngine instance, but can be easily adapted to run standalone or on other obfuscated solutions such as Docker.
+# Mitta-Auth
+Mitta-Auth is a password-less authentication system written for Mitta.us. In this version, it is run on an AppEngine instance, but can be easily adapted to run standalone or on other obfuscated solutions such as Docker.
+
+Mitta Auth uses Python, Flask and Flask-Login.
 
 Authentication systems are apparantly difficult to implement. A simplified and secure authentication system is presented that prioritizes end user's rights while still remaining easy to implement and use by a developer.
+
+Authentication is provided via emailed login links and SMS tokens.
 
 ## Passwords Aren't Needed
 Over time, passwords become difficult to remember due to password requirements and may instead be stored by the user in various systems which themselves require passwords for access and which may be comprimised by other means. For example, one site used by a user may be comprimised which exposes that user's account on a second site because the user decided to use the same password, which the first site stored in plain text like a damn fool.
