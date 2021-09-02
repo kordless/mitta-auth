@@ -14,7 +14,7 @@ In a real world example, one site used by a user may be comprimised which expose
 
 At the same time, on most sites, passwords may be "ignored" by using forgotten password functions and flow. No password is required to reset a password, usually. The typical mechanism to reset a password is to ether send the user a code via SMS, like Discord or Twilio does, or send the user an email with a reset link as most other sites do. Whether or not the site then logs in the user depends on hopefully remembering the right password.
 
-Mitta Auth takes the less common approach and uses a "forgotten password" authentication flow to authenticate users quickly and easily. The user only types in a code or clicks on a link in their email client, which is typically open in an ajacent tab.
+Mitta-Auth takes the less common approach and uses a "forgotten password" authentication flow to authenticate users quickly and easily. The user only types in a code or clicks on a link in their email client, which is typically open in an ajacent tab.
 
 ## 2FA Security
 It is widely believed that SMS and email login functionality may be comprimised by attackers. In practice, more secure systems could be built by combining a token login with a 2FA login which can be reset seperately.  In the case of Coinbase, a reset of 2FA functionality requires a waiting period and gated on if the client used to reset the authentication system has been in recent communication with the system.
