@@ -1,4 +1,4 @@
-# mitta-auth
+# Mitta Auth
 Mitta Auth is a password-less authentication system written for Mitta.us. In this version, it is run on an AppEngine instance, but can be easily adapted to run standalone or on other obfuscated solutions such as Docker.
 
 Authentication systems are apparantly difficult to implement. A simplified and secure authentication system is presented that prioritizes end user's rights while still remaining easy to implement and use by a developer.
