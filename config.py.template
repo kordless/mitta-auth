@@ -1,0 +1,46 @@
+# rename to config.py
+
+import os
+from datetime import date
+
+# copyright holders
+copyright_date = date.today().year
+copyright_name = "Kord Campbell"
+
+# application info
+app_name = "Mitta Auth"
+app_description = "Password-less authentication."
+app_email = "kordless@gmail.com"
+app_owner = "Kord Campbell"
+app_domain = "mitta.us"
+
+# email
+contact_sender = "noreply@mitta.us"
+sendgrid_api_key = ""
+
+# twilio
+twilio_account_sid = ""
+twilio_auth_token = ""
+twilio_number = "+19250005555"
+
+# flask_login key
+secret_key = ""
+
+# flask login length
+login_lifetime = timedelta(minutes=360)
+
+# jobs token
+job_token = ""
+
+# locale settings
+app_lang = 'en'
+locales = ['en_US']
+
+# dev settings
+if os.environ['DEV'].startswith('True'):
+	print("development mode")
+	website_url = 'http://localhost:SERVICE_PORT/'
+	cloud_storage_bucket = 'sudosoup-dev-images'
+else:
+	website_url = 'https://%s.%s/' % ("www", app_domain)
+	cloud_storage_bucket = 'sudosoup-images'	

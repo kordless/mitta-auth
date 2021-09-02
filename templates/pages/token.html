@@ -1,0 +1,50 @@
+{% extends "pages/base.html" %}
+
+{% block content %}
+
+<div class="container">
+  <div class="row">
+    <div class="col-sm-3">
+    </div>
+    <div class="col-sm-6">
+      <div class="email_form">
+        <h2 style="font-size: 2.5rem; font-weight: 300; line-height: 1.2; font-variant-caps: all-small-caps;">&gt;Mitta.Us</h2>
+        <form method="post">
+          <div class="form-group">
+            <label>Enter the token you received by email.</label>
+            <input autofocus type="text" class="form-control" name="mail_token" placeholder="FuvhRU4nw9g9zGqvv1ypo6VX5aZYLeBmSNBpXlfscsy4bp_QfPgt79BVVZ47HhN12aGWGDA7NZQEDkoTeyzug">
+            {% if next_url %}
+            <input type="hidden" name="next" value="{{next_url}}">
+            {%endif%}
+            {% if op %} 
+            <input type="hidden" name="op" value="{{op}}">
+            {%endif%}
+            {% if email %} 
+            <input type="hidden" name="email" value="{{email}}">
+            {%endif%}
+            <small class="form-text text-muted">
+              {% for message in get_flashed_messages() %}
+              <div class="flash">{{ message }}</div>
+              {% endfor %}
+            </small>
+          </div>
+          <button type="submit" class="btn btn-primary" title="Use a token for login.">Verify</button>
+          <a class="btn btn-danger" title="Cancel" href="/">Cancel</a>
+
+        </form>
+      </div>
+    </div>
+    <div class="col-sm-3">
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block javascript %}
+<script type="text/javascript">
+  $(document).ready(function(){
+
+  });
+</script>
+{% endblock %}
