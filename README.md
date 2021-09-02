@@ -17,6 +17,8 @@ It is widely believed that SMS and email two factor functionality may be comprim
 
 Mitta Auth will eventually implement both SMS and Google Authentication for logins. For the moment, the code implements only SMS and email authentication flows.
 
+Because Mitta Auth uses an SMS auth flow, developers should be aware that SMS is not consiered a "safe" means of authentication for more advanced levels of security.
+
 ## Installing
 
 ## Configuring
