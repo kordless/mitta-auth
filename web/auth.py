@@ -16,7 +16,7 @@ import flask_login
 import phonenumbers
 from email_validator import validate_email, EmailNotValidError
 
-from lib.util import email_user, sms_user, generate_token, random_number, random_string
+from lib.util import slacker, email_user, sms_user, generate_token, random_number, random_string
 
 from web.models import User, Transaction
 
@@ -55,38 +55,29 @@ def email():
 	use_token = request.args.get("use_token")
 	email = request.args.get("email")
 	next_url = request.args.get("next")
+	if not next_url:
+		next_url = request.form.get('next')
 	test = request.form.get("test")
 
-	# secure transaction to POST
-	transaction_id = random_string(13)
-	transaction = Transaction.create(uid="anonymous", tid=transaction_id)
+	# if we have no connection to the DB, this will handle it
+	try:
+		# secure transaction to POST
+		transaction_id = random_string(13)
+		transaction = Transaction.create(uid="anonymous", tid=transaction_id)
 
-	return render_template(
-		'pages/email.html',
-		config=config,
-		session=session,
-		app_id = random_string(9),
-		transaction_id = transaction_id,
-		op=op,
-		use_token=use_token,
-		email=email,
-		next_url=next_url
-	)
-
-# tfa login
-@auth.route('/tfa')
-def tfa():
-	# url paste login
-	next_url = request.args.get('next')
-	email = request.args.get('email')
-
-	return render_template(
-		'pages/tfa.html',
-		config=config,
-		next_url=next_url,
-		email=email
-	)
-
+		return render_template(
+			'pages/email.html',
+			config=config,
+			session=session,
+			app_id = random_string(9),
+			transaction_id = transaction_id,
+			op=op,
+			use_token=use_token,
+			email=email,
+			next=next_url
+		)
+	except:
+		return redirect(url_for('site.index'))
 
 # LOGIN POST
 # requires transaction_id
@@ -95,8 +86,8 @@ def email_post():
 	# bots
 	password = request.form.get('password')
 	if password:
-		time.sleep(20)
-		return "( ︶︿︶)_╭∩╮ PASSWORDS & BOTS!"
+		# there are no passwords, but there are hacker fucks
+		return "( ︶︿︶)_╭∩╮ PASSWORD REQUIRED!\nALSO, GET OFF MY LAWN.", 500
 
 	try:
 		# check email and options
@@ -110,14 +101,15 @@ def email_post():
 	# handle bots filling out forms
 	transaction_id = request.form.get('transaction_id')
 
-	# only allow posts with transaction IDs
+	# only allow posts with transaction IDs (move to a decorator?)
 	if transaction_id:
 		with client.context():
-			try:
-				transaction = Transaction.query().filter(Transaction.tid==transaction_id).get()
+			transaction = Transaction.query().filter(Transaction.tid==transaction_id).get()
+
+			# if we find it, delete it and proceed
+			if transaction:
 				transaction.key.delete()
-			except:
-				# kick them out
+			else:
 				return redirect(url_for('auth.email'))
 	else:
 		return redirect(url_for('auth.email'))
@@ -148,7 +140,9 @@ def email_post():
 		pass
 
 	# at this point we're not logged in, but may have a destination in mind
-	next_url = request.form.get('next')
+	next_url = request.args.get('next')
+	if not next_url:
+		next_url = request.form.get('next')
 
 	# options for next form
 	options = {'email': email, 'op': op, 'next': next_url}
@@ -169,26 +163,18 @@ def email_post():
 		subject = "Login Link"
 			
 		if user.phone != "+1" and user.phone:
-			# need some mechanism to keep someone from spamming users
+			# generate code for use after auth.verify
 			phone_code = random_number(6)
 
 			with client.context():
 				# rotate code
 				# TODO: Add additional 2FA with Google Authenticator
 				user.phone_code = phone_code
-				user.failed_2fa_attempts = user.failed_2fa_attempts + 1
+				user.updated = datetime.datetime.utcnow()
 				user.put()
 
-			if config.dev == "True":
-				print("auth code is: %s" % phone_code)
-
-			sms = sms_user(user.phone, message="%s is code for mitta.us" % phone_code)
-			
-			if sms:
-				return redirect(url_for('auth.tfa', **options))
-			else:
-				flash("This site's Twilio account needs to be recharged.")
-				return redirect(url_for('auth.email', **options))
+			# go ask for the last 4 digits of phone
+			return redirect(url_for('auth.verify_phone', **options))
 
 	# rotate the token
 	with client.context():
@@ -197,14 +183,12 @@ def email_post():
 			mail_token = generate_token()
 			user.mail_token = mail_token
 			user.phone_code = generate_token() # secure phone code
+			user.updated = datetime.datetime.utcnow()
 			user.put()
 		else:
 			mail_token = user.mail_token
 
 	# send user a login link (with next url even)
-	if not next_url:
-		next_url = ""
-
 	if config.dev == "True":
 		login_link = "http://localhost:8080/token?mail_token=%s&op=%s&next=%s" % (mail_token, op, next_url)
 	else:
@@ -218,6 +202,7 @@ def email_post():
 	else:
 		with client.context():
 			user.mail_tries = user.mail_tries + 1
+			user.updated = datetime.datetime.utcnow()
 			user.put()
 
 	if config.dev == "True":
@@ -225,7 +210,7 @@ def email_post():
 
 	# a poem
 	once_upon = [
-		"Once opon a time there was a girl who lived in a old cabin were every time you took a step it would creak.",
+		"Once upon a time there was a girl who lived in a old cabin were every time you took a step it would creak.",
 		"'Squeak!',' the floor said.",
 		"She lived alone and only knew the man that brought her food.",
 		"He told her stories about her life like she was a magical princess who was destined to become Queen.",
@@ -241,19 +226,108 @@ def email_post():
 		email,
 		subject = subject, 
 		html_content = """
-	<div><span>Here is your site token: </span></div>
+	<div><span>Hello and salutations!</span></div>
+	<div><span>Here is the site token you requested: </span></div>
 	<div><span>%s</span></div>
 	<div><span><a href="%s">Click Here</a></span></div>
 	<div>&nbsp;</div>
-	<div>A story for the mail filters reminds me of being a kid and trying to sneak one past the parents.</div>
+	<div>A portion of a story written by my beautiful daughter. Just enjoy!</div>
+	<div><span>%s</span></div>
 	<div><span>%s</span></div>
 	<div><span><3, your friends at Mitta!</span><div>
-		""" % (user.mail_token, login_link, once_upon[randrange(9)])
+		""" % (user.mail_token, login_link, once_upon[randrange(9)], once_upon[randrange(9)])
 	)
 
-	flash("Check your email.")
+	flash("Check your email for the login token.")
 	return redirect(url_for('auth.token', **options))
-  
+
+
+# verify phone digits
+@auth.route('/verify')
+def verify_phone():
+	email = request.args.get('email')
+	if not email:
+		email = request.form.get('email')
+	next_url = request.args.get('next')
+	if not next_url:
+		next_url = request.form.get('next')
+	op = request.args.get('op')
+	if not op:
+		op = request.form.get('op')
+
+	# no email?
+	if not email:
+		return redirect(url_for('auth.email'))
+	
+	# find the user and set hint
+	user = User.get_by_email(email)
+	hint = user.phone[-2:]
+
+	# options for next form
+	options = {'email': email, 'op': op, 'next': next_url, 'hint': hint}
+
+	if config.dev == "True":
+		print("phone hint includes: ", hint)
+
+	return render_template('pages/verify.html', **options)
+
+
+@auth.route('/verify', methods=['POST'])
+def verify_phone_post():
+	email = request.args.get('email')
+	next_url = request.args.get('next')
+	if not next_url:
+		next_url = request.form.get('next')
+	op = request.args.get('op')
+
+	# options for next form, set op to 0 given we have a phone number
+	options = {'email': email, 'op': 0, 'next': next_url}
+
+	# get the digits
+	digits = request.form.get('digits')
+	
+	# find the user again and get their code
+	user = User.get_by_email(email)
+	code = user.phone[-4:]
+	phone_code = user.phone_code
+
+	# if the two match, we're in business to move on
+	if code == digits:
+		if config.dev == "True":
+			print("auth code is: %s" % phone_code)
+
+		sms = sms_user(user.phone, message="%s is code for mitta.us" % phone_code)
+		
+		if sms:
+			return redirect(url_for('auth.tfa', **options))
+		else:
+			options['use_token'] = 1
+			flash("Due to conditions beyond our control, you'll need to login with an email token.")
+			return redirect(url_for('auth.email', **options))
+	else:
+		# silently reset the code, because validation was wrong
+		with client.context():
+			user.phone_code = generate_token() # secure phone code
+			user.put()
+		return redirect(url_for('auth.tfa', **options))
+
+
+# tfa login
+@auth.route('/tfa')
+def tfa():
+	# url paste login
+	next_url = request.args.get('next')
+	if not next_url:
+		next_url = request.form.get('next')
+	email = request.args.get('email')
+
+	return render_template(
+		'pages/tfa.html',
+		config=config,
+		next=next_url,
+		email=email
+	)
+
 
 # mail token GET (from email)
 @auth.route('/token')
@@ -261,6 +335,10 @@ def token():
 	# check token and next_url
 	mail_token = request.args.get('mail_token')
 	next_url = request.args.get('next')
+	if not next_url:
+		next_url = request.form.get('next')
+		if not next_url:
+			next_url = None
 
 	# options
 	op = request.args.get("op")
@@ -280,6 +358,8 @@ def token():
 				user.mail_confirm = True
 				user.authenticated = True
 				user.mail_tries = 0
+				user.failed_2fa_attempts = 0
+				user.updated = datetime.datetime.utcnow()
 				user.put()
 
 			# log them in
@@ -288,7 +368,8 @@ def token():
 			login_user(user)
 			"""
 			"""
-
+			slacker(text="%s has logged in." % user.name)
+		
 			# user may choose to upgrade
 			if op == "1":
 				return redirect(url_for('auth.phone', **options))
@@ -299,10 +380,10 @@ def token():
 					return redirect(url_for('shell.console'))
 
 		else:
-			flash("Click cancel to login again. We need to send a new token.")
-			return redirect(url_for('auth.token', **options))
+			flash("Incorrect token entered. Try again.")
+			return redirect(url_for('auth.email', **options))
 	else:
-		return render_template('pages/token.html', config=config, op=op, next_url=next_url)
+		return render_template('pages/token.html', config=config, op=op, next=next_url)
 
 
 # verify code from emails
@@ -313,14 +394,14 @@ def token_post():
 	email = request.args.get('email')
 
 	if not mail_token:
-		return redirect(url_for('auth.login'))
+		return redirect(url_for('auth.email'))
 
 	# url paste login
-	next_url = request.form.get('next')
+	next_url = request.args.get('next')
 	if not next_url:
-		next_url = request.args.get('next')
+		next_url = request.form.get('next')
 		if not next_url:
-			next_url = ""
+			next_url = None
 
 	# flow control
 	op = request.form.get("op")
@@ -348,6 +429,7 @@ def token_post():
 					user.mail_confirm = True
 					user.authenticated = True
 					user.mail_tries = 0
+					user.updated = datetime.datetime.utcnow()
 					user.put()
 			
 		except:
@@ -362,7 +444,8 @@ def token_post():
 		login_user(user)
 		"""
 		"""
-
+		slacker(text="%s has logged in." % user.name)
+		
 		# op
 		if op == "1":
 			return redirect(url_for('auth.phone', **options))
@@ -370,7 +453,7 @@ def token_post():
 			if next_url:
 				return redirect(next_url)
 			else:
-				return redirect(url_for('shell.console'))
+				return redirect(url_for('site.index'))
 	else:
 		flash("Please enter a valid mail token!")
 		return redirect(url_for('auth.token', **options)) 
@@ -381,7 +464,10 @@ def token_post():
 @login_required
 def phone():
 	email = request.args.get('email')
-	return render_template('pages/phone.html', config=config, email=email)
+	next_url = request.args.get('next')
+	if not next_url:
+		next_url = request.form.get('next')
+	return render_template('pages/phone.html', config=config, next=next_url, email=email)
 
 
 # paid signup using just a phone number for now
@@ -402,18 +488,23 @@ def phone_post():
 	# see if we have a paid user with this phone number
 	phone_e164 = phonenumbers.format_number(phone, phonenumbers.PhoneNumberFormat.E164)
 
+	next_url = request.args.get('next')
+	if not next_url:
+		next_url = request.form.get('next')
+
 	# flow control
 	op = request.args.get("op")
 	if not op:
 		op = "0"
 
-	options = {'op': op, 'phone': phone_e164}
+	options = {'op': op, 'next': next_url, 'phone': phone_e164}
 
 	# rotate the current logged in user's code
 	user = User.get_by_uid(current_user.uid)
 	with client.context():
 		user.phone_code = random_number(6)
 		user.phone = phone_e164
+		user.updated = datetime.datetime.utcnow()
 		user.put()
 
 	phone_code = user.phone_code
@@ -426,7 +517,6 @@ def phone_post():
 # handle the SMS challenge response
 @auth.route('/tfa', methods=['POST'])
 def tfa_post():
-
 	# check phone number
 	phone_code = request.form.get('phone_code')
 	phone = request.args.get('phone')
@@ -437,9 +527,9 @@ def tfa_post():
 		op = "0"
 	options = {'op': op}
 	
-	next_url = request.form.get('next')
+	next_url = request.args.get('next')
 	if not next_url:
-		next_url = ""
+		next_url = request.form.get('next')
 
 	# handle signuflow vs. upgrading user
 	if request.args.get("email"):
@@ -456,12 +546,14 @@ def tfa_post():
 
 	# try from current user
 	try:
-		if user.phone != "+1" or user.phone:
+		if user.phone != "+1" and user.phone:
 			phone = user.phone
 	except:
-		pass
+		# no user, no email, so return
+		return redirect(url_for('auth.email'))
 
 	# check if the code is correct
+	# we update user below
 	if user_phone_code == phone_code:
 		# log them in
 		"""
@@ -469,28 +561,39 @@ def tfa_post():
 		login_user(user)
 		"""
 		"""
+		slacker(text="%s has logged in." % user.name)
+
 	else:
 		# wrong code? we should reset the token and count failures
 		# if this code never runs, there will be a 6 digit token in
 		# the user's account which will never expire.
 		with client.context():
-			user.phone_code = generate_token()
-			user.failed_2fa_attempts = user.failed_2fa_attempts + 1
-			user.put() 
+			if user:
+				user.phone_code = generate_token()
+				user.failed_2fa_attempts = user.failed_2fa_attempts + 1
+				user.updated = datetime.datetime.utcnow()
+				user.put() 
 
-		flash("Click cancel now to start over.")
-		return redirect(url_for('auth.tfa', **options))
+		flash("Wrong code. Try again!")
+		return redirect(url_for('auth.email', **options))
 
 	# update user
 	with client.context():
 		user.phone = phone
 		user.phone_code = generate_token()  # secure phone code
 		user.paid = True
+		user.authenticated = True
+		user.updated = datetime.datetime.utcnow()
 		user.put()
 
-	if next_url:
+	if next_url and next_url != "None":
 		return redirect(next_url)
 	else:
-		return redirect(url_for('shell.console'))
+		if config.dev == "True":
+			return redirect(url_for('site.index'))
+		else:
+			# production SSL
+			return redirect(url_for('site.index', _external=True, _scheme="https"))
 
 # that's it
+# <3 Dad
